@@ -5,6 +5,7 @@
     python3 tools/extract.py --ja "<Japanese nscript.dat, its folder, or the disc image (.bin/.cue/.iso)>"
     python3 tools/extract.py --pt "<the Portuguese patch's game folder>"
     python3 tools/extract.py --es "<the Spanish patch's folder>"
+    python3 tools/extract.py --chs "<the Chinese game folder, or extracted/ holding nscript.txt and arc0/arc1>"
 
 The other forms add another language to the data that is already there (any of them can also be
 given together with the first, or with one another). With one the player offers a language switch.
@@ -19,6 +20,8 @@ What it does
   * --pt <folder> -> data/script-pt.txt, and data/pt/arc/... for the pictures and sounds of its
                      archives that differ from the ones in data/arc/ or are not there at all
   * --es <folder> -> data/script-es.txt and data/es/arc/..., the same way
+  * --chs <source> -> data/script-chs.txt (GBK or UTF-8) and data/chs/arc/...;
+                     numbered bgm/02.mp3 through bgm/18.mp3 reuse the shared CD tracks
   * data/manifest.json lists every extracted file (lower-case, forward slashes).
 
 Nothing is re-encoded: images and audio are written byte-for-byte as stored.
@@ -332,10 +335,121 @@ def repaired(text, repairs):
 PATCHES = {'pt': ('portuguese', portuguese_text), 'es': ('spanish', spanish_text)}
 
 
+def add_chinese(src, out):
+    """Import the KID patch from a game folder or an already unpacked directory.
+
+    Preserve script lines (relative skips depend on them), merge archive layers before
+    comparing with shared files, and never replace another language's resources.
+    """
+    out = os.path.abspath(out)
+    folder = os.path.abspath(src if os.path.isdir(src) else os.path.dirname(src))
+    candidates = ('nscript.txt', 'nscript.dat', '0.txt', '00.txt', 'script-chs.txt')
+    script_path = next((os.path.join(folder, n) for n in candidates
+                        if os.path.isfile(os.path.join(folder, n))), None) if os.path.isdir(src) else src
+    if not script_path:
+        raise ValueError('no Chinese nscript.txt / nscript.dat / 0.txt found in ' + folder)
+    with open(script_path, 'rb') as f:
+        raw = f.read()
+    if os.path.basename(script_path).lower() == 'nscript.dat':
+        raw = bytes(b ^ 0x84 for b in raw)
+    try:
+        text = raw.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = raw.decode('gbk')
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    # The patch retained a commented-out increment but shortened the three
+    # re-roll skips. They land on that comment and spin forever on a repeat.
+    # As in the Japanese script's fix, jump back to rnd, without moving a line.
+    old = ('rnd %msgno,208\n;inc %msgno\n'
+           'if %msgno==%lastmsgno0 skip -1\n'
+           'if %msgno==%lastmsgno1 skip -2\n'
+           'if %msgno==%lastmsgno2 skip -3')
+    new = ('rnd %msgno,208\n;inc %msgno\n'
+           'if %msgno==%lastmsgno0 skip -2\n'
+           'if %msgno==%lastmsgno1 skip -3\n'
+           'if %msgno==%lastmsgno2 skip -4')
+    text = text.replace(old, new)
+    # Some birthday branches have a full-width space between the condition and
+    # mov. It is prose to NScripter, so normalize only this command separator.
+    text = re.sub(r'(?m)^(if %month==\d+ && %day==\d+)\u3000[ \t]*(?=mov\b)', r'\1 ', text)
+
+    members = {}
+
+    def collect(name, payload):
+        rel = norm(name)
+        if rel.startswith('/') or any(p in ('', '.', '..') or ':' in p for p in rel.split('/')):
+            raise ValueError('unsafe Chinese resource path: ' + rel)
+        if rel.rsplit('.', 1)[-1] in ('jpg', 'jpeg', 'png', 'bmp', 'wav', 'ogg', 'mp3'):
+            members[rel] = payload
+
+    # arc.nsa is the base; numbered archives override it, then loose files win.
+    archives = sorted(n for n in os.listdir(folder) if n.lower().endswith('.nsa'))
+    for n in archives:
+        for name, payload in read_nsa(os.path.join(folder, n)):
+            collect(name, payload)
+    layers = sorted(n for n in os.listdir(folder)
+                    if re.fullmatch(r'arc\d+', n, re.I) and os.path.isdir(os.path.join(folder, n)))
+    layers.sort(key=lambda n: int(n[3:]))
+    for layer in layers:
+        base = os.path.join(folder, layer)
+        for directory, _, names in os.walk(base):
+            for n in names:
+                full = os.path.join(directory, n)
+                with open(full, 'rb') as f:
+                    collect(os.path.relpath(full, base), f.read())
+    for n in os.listdir(folder):
+        full = os.path.join(folder, n)
+        if os.path.isfile(full):
+            with open(full, 'rb') as f:
+                collect(n, f.read())
+        elif n.lower() in ('image', 'icon', 'wave', 'ceshi', 'bgm', 'mp3'):
+            for directory, _, names in os.walk(full):
+                for leaf in names:
+                    path = os.path.join(directory, leaf)
+                    with open(path, 'rb') as f:
+                        collect(os.path.relpath(path, folder), f.read())
+
+    # Chinese MP3 numbers are the original CD numbers; the engine resolves these
+    # without changing the source script or adding another copy of the soundtrack.
+    tracks = set(re.findall(r'(?i)bgm[\\/](0?[2-9]|1[0-8])\.mp3', text))
+    for track in tracks:
+        stem = os.path.join(out, 'cd', 'track' + track.zfill(2))
+        if not any(os.path.isfile(stem + ext) for ext in ('.ogg', '.mp3', '.wav')):
+            raise ValueError('Chinese script needs shared CD track ' + track + '; extract base game data first')
+
+    os.makedirs(out, exist_ok=True)
+    added = {'script-chs.txt'}
+    with open(os.path.join(out, 'script-chs.txt'), 'wb') as f:
+        f.write(text.encode('utf-8'))
+    for rel, payload in sorted(members.items()):
+        if re.fullmatch(r'bgm/(0?[2-9]|1[0-8])\.mp3', rel):
+            continue
+        shared = os.path.join(out, 'arc', *rel.split('/'))
+        if os.path.isfile(shared):
+            with open(shared, 'rb') as f:
+                if f.read() == payload:
+                    continue
+        dst = os.path.join(out, 'chs', 'arc', *rel.split('/'))
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        with open(dst, 'wb') as f:
+            f.write(payload)
+        added.add('chs/arc/' + rel)
+    mpath = os.path.join(out, 'manifest.json')
+    with open(mpath, encoding='utf-8') as f:
+        manifest = json.load(f)
+    manifest['files'] = sorted({n for n in manifest['files']
+                                if n != 'script-chs.txt' and not n.startswith('chs/')} | added)
+    with open(mpath, 'w', encoding='utf-8') as f:
+        json.dump(manifest, f)
+    print('Chinese script: %d lines; %d language-specific assets' % (text.count('\n'), len(added) - 1))
+
+
 def add_patch(code, src, out):
     """Writes data/script-<code>.txt from a translation patch's game folder (or its nscript.dat),
     and puts every member of its archives that data/arc/ lacks, or holds with other contents, under
     data/<code>/arc/: the player looks there first while the story runs in that language."""
+    if code == 'chs':
+        return add_chinese(src, out)
     name, text_of = PATCHES[code]
     folder = src if os.path.isdir(src) else os.path.dirname(os.path.abspath(src))
     dat = os.path.join(src, 'nscript.dat') if os.path.isdir(src) else src
@@ -377,7 +491,7 @@ def add_patch(code, src, out):
 def main():
     args = sys.argv[1:]
     extra = {}
-    for flag in ('--ja', '--pt', '--es'):
+    for flag in ('--ja', '--pt', '--es', '--chs'):
         if flag in args:
             k = args.index(flag)
             if k + 1 >= len(args):

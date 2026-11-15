@@ -61646,25 +61646,25 @@ if %tmp==1 mov $msgfg,":a;image\msg\ran_t09.jpg"
 
 ;日付でメッセージ
 date %year,%month,%day
-if %month==1 && %day==1　 mov $msgline0,"元旦节快乐！_！":return
+if %month==1 && %day==1 mov $msgline0,"元旦节快乐！_！":return
 
 if %month==12 && %day==25 mov $msgline0,"圣诞节快乐！嗯嗯，同时祝我生日快乐！":mov $msgline1,"我希望每个人都给我送礼物！_！":mov $msgfg,":a;image\msg\ran_t01.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
 
-if %month==5 && %day==3　 mov $msgline0,"嗯，今天是我的生日？":mov $msgline1,"但是我的年龄依旧是个谜。":mov $msgline2,"即使是原作者也不知道～_。":mov $msgfg,":a;image\msg\ran_t02.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
+if %month==5 && %day==3 mov $msgline0,"嗯，今天是我的生日？":mov $msgline1,"但是我的年龄依旧是个谜。":mov $msgline2,"即使是原作者也不知道～_。":mov $msgfg,":a;image\msg\ran_t02.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
 
-if %month==9 && %day==22　mov $msgline0,"好像今天是我的生日。":mov $msgline1,"一年过去的也太快了。":mov $msgline2,"现在，明年，让我们迎接这一天―――――":mov $msgfg,":a;image\msg\ran_t03.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
-if %month==3 && %day==12　mov $msgline0,"今天是我们是生日，我们非常高兴。":mov $msgline1,"哎，还不是槙久老爷随便决定的ー。":mov $msgline2,"　":mov $msgline3,"……姐姐，话多了……_。":mov $msgfg,":a;image\msg\ran_t10.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
+if %month==9 && %day==22 mov $msgline0,"好像今天是我的生日。":mov $msgline1,"一年过去的也太快了。":mov $msgline2,"现在，明年，让我们迎接这一天―――――":mov $msgfg,":a;image\msg\ran_t03.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
+if %month==3 && %day==12 mov $msgline0,"今天是我们是生日，我们非常高兴。":mov $msgline1,"哎，还不是槙久老爷随便决定的ー。":mov $msgline2,"　":mov $msgline3,"……姐姐，话多了……_。":mov $msgfg,":a;image\msg\ran_t10.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
 if %month==11 && %day==28 mov $msgline0,"Ｍｕｈａ～ａーーーーー_！":mov $msgline1,"蘑菇炸弹_！":mov $msgfg,":a;image\msg\ran_t09.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
 if %month==8 && %day==15  mov $msgline0,"哇，今天是我的生日！？":mov $msgline1,"哇。我做到了！":mov $msgline2,"下次，我会成为女一号的_！":mov $msgfg,":a;image\msg\ran_t06.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
-if %month==9 && %day==9　 mov $msgline0,"………………（今天是我出生的那一天）":mov $msgfg,":a;image\msg\ran_t07.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
+if %month==9 && %day==9 mov $msgline0,"………………（今天是我出生的那一天）":mov $msgfg,":a;image\msg\ran_t07.jpg":mov $msgbg,"image\msg\ran_bg07.jpg":return
 ;if %month== && %day== mov $msgline0,"":return
 
 ;ランダムにメッセージ(３回前までに表示したメッセージは表示しない)
 rnd %msgno,208
 ;inc %msgno
-if %msgno==%lastmsgno0 skip -1
-if %msgno==%lastmsgno1 skip -2
-if %msgno==%lastmsgno2 skip -3
+if %msgno==%lastmsgno0 skip -2
+if %msgno==%lastmsgno1 skip -3
+if %msgno==%lastmsgno2 skip -4
 mov %lastmsgno2,%lastmsgno1
 mov %lastmsgno1,%lastmsgno0
 mov %lastmsgno0,%msgno

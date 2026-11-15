@@ -10,8 +10,10 @@
 // Spanish one writes "op", "un día", "ep", "Regresar" and "Ayuda". The rest (the pages this port
 // added) is translated.
 
+import { CHS, CHS_RULES } from './i18n-chs.js';
+
 let lang = 'en';
-export function setLang(l) { lang = l === 'ja' || l === 'pt' || l === 'es' ? l : 'en'; }
+export function setLang(l) { lang = ['ja', 'pt', 'es', 'chs'].includes(l) ? l : 'en'; }
 export function uiLang() { return lang; }
 
 const JA = {
@@ -1260,7 +1262,7 @@ const ES_RULES = [
   [/^From (.+)$/, (m) => 'Desde ' + (m[1] === 'a turn in the road' ? 'una bifurcación' : m[1])],
 ];
 
-const TABLES = { ja: [JA, RULES], pt: [PT, PT_RULES], es: [ES, ES_RULES] };
+const TABLES = { ja: [JA, RULES], pt: [PT, PT_RULES], es: [ES, ES_RULES], chs: [CHS, CHS_RULES] };
 
 export function t(s) {
   const table = TABLES[lang];
@@ -1278,7 +1280,7 @@ export function t(s) {
 export function when(time) {
   const d = new Date(time);
   const pad = (n) => String(n).padStart(2, '0');
-  if (lang === 'ja') return d.getMonth() + 1 + '月' + d.getDate() + '日  ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if (lang === 'ja' || lang === 'chs') return d.getMonth() + 1 + '月' + d.getDate() + '日  ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   if (lang === 'pt' || lang === 'es') return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '  ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
   return null;
 }

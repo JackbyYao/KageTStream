@@ -124,6 +124,17 @@ a.hm-link { text-decoration: none; }      /* the rule under it is the border: no
 :root:lang(pt) .cg.locked::after { content: "Ainda não vista"; }
 :root:lang(es) .slot.empty .thumb::after { content: "Vacío"; }
 :root:lang(es) .cg.locked::after { content: "Aún no vista"; }
+:root:lang(zh) { --serif: "Songti SC", SimSun, "Noto Serif CJK SC", "Noto Serif SC", serif; }
+:root:lang(zh) #stage *, :root:lang(zh) #home *, :root:lang(zh) #phone-note p { font-style: normal; }
+:root:lang(zh) .slot.empty .thumb::after { content: "空白存档"; }
+:root:lang(zh) .cg.locked::after { content: "未解锁"; }
+:root:lang(zh) .cf-sec, :root:lang(zh) .hm-plate, :root:lang(zh) .hm-press,
+:root:lang(zh) #quickbar .plate, :root:lang(zh) .hm-choice .k, :root:lang(zh) .hm-facts div,
+:root:lang(zh) .hm-brand, :root:lang(zh) .gd-sub, :root:lang(zh) .fc-sub { letter-spacing: .08em; text-indent: 0; }
+:root:lang(zh) .hm-files .k { letter-spacing: .08em; }
+/* Five languages share the settings column and the opening page's language row. */
+.hm-choice.languages { flex-wrap: wrap; gap: 18px; }
+.config .cols .cf-opts.languages { gap: 18px; }
 :root:lang(pt) .hm-strip.tight .hm-plate, :root:lang(es) .hm-strip.tight .hm-plate { padding: 0 14px; letter-spacing: .16em; text-indent: .16em; }
 :root:lang(pt) .hm-choice .k, :root:lang(es) .hm-choice .k { min-width: 270px; }
 /* the quick bar's plates are as wide as their (longer) words, set closer: "Configuración" */

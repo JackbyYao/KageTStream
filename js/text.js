@@ -17,7 +17,18 @@ export const FONTS = {
   sans: { stack: '"Helvetica Neue", Helvetica, Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif', scale: 1, lead: 1.16, map: SUBST },
 };
 let storyFont = 'original';
-export function setStoryFont(key) { if (FONTS[key]) storyFont = key; }
+const CHINESE_FONTS = {
+  original: '"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", "WenQuanYi Micro Hei", sans-serif',
+  serif: '"Songti SC", SimSun, "Noto Serif CJK SC", "Noto Serif SC", serif',
+  sans: '"Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", "WenQuanYi Micro Hei", sans-serif',
+};
+const ORIGINAL_STACKS = Object.fromEntries(Object.entries(FONTS).map(([k, f]) => [k, f.stack]));
+export function setStoryFont(key, lang = 'en') {
+  if (FONTS[key]) storyFont = key;
+  for (const [k, f] of Object.entries(FONTS)) f.stack = lang === 'chs' ? CHINESE_FONTS[k] : ORIGINAL_STACKS[k];
+  widthCache.clear();
+  ascentCache.clear();
+}
 export function storyFontKey() { return storyFont; }
 const fontOf = (key) => FONTS[key] || FONTS.original;
 const fontCss = (size, key) => { const f = fontOf(key); return Math.round(size * f.scale * 10) / 10 + 'px ' + f.stack; };

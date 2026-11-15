@@ -1,7 +1,7 @@
 // Plays the whole walkthrough through the real script, headlessly, and reports
 // every day on which a step of the guide did not match a choice the game offered.
 //
-//   node tools/guide-check.mjs [normal|true] [ja|pt|es] [-v]
+//   node tools/guide-check.mjs [normal|true] [ja|pt|es|chs] [-v] [--seed=1] [--max-steps=60000000]
 //
 // With "ja" it plays the Japanese script (data/script-ja.txt), with "pt" or "es" the Portuguese or
 // Spanish one (data/script-pt.txt, -es.txt), reading each choice through its English counterpart
@@ -19,11 +19,17 @@ import { Guide, choiceTranslator } from '../js/guide.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const data = path.join(here, '..', 'data');
 const english = fs.readFileSync(path.join(data, 'script.txt'), 'utf8');
-const other = ['ja', 'pt', 'es'].find((l) => process.argv.includes(l));
+const other = ['ja', 'pt', 'es', 'chs'].find((l) => process.argv.includes(l));
 const script = other ? fs.readFileSync(path.join(data, 'script-' + other + '.txt'), 'utf8') : english;
 const told = other ? choiceTranslator(script, english) : null;
 const ending = process.argv.includes('true') ? 'true' : 'normal';
 const verbose = process.argv.includes('-v');
+// A headless run has no frames or audio clock. Advance time explicitly instead
+// of busy-waiting for every scripted pause (and for timer-driven loops).
+let clock = 0;
+Date.now = () => clock;
+let seed = Number(process.argv.find((s) => s.startsWith('--seed='))?.split('=')[1] || 1) >>> 0;
+const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 0x100000000; };
 
 const guide = new Guide(fs.readFileSync(path.join(data, 'guide.txt'), 'utf8'), { on: true, day: 1, ending });
 const total = guide.days.length;
@@ -116,11 +122,13 @@ const ui = {
   },
 };
 const host = {
+  lang: other || 'en',
   gfx, text, ui, storage,
   audio: new Proxy({}, { get: () => noop }),
   input: { ctrl: true, flush: noop, takeClick: () => false, next: async () => ({ type: 'click' }) },
-  sleep: async () => {}, yield: async () => {}, frame: async () => {},
-  random: Math.random,
+  sleep: async (ms) => { clock += Math.max(1, ms || 0); },
+  yield: async () => { clock++; }, frame: async () => { clock += 16; },
+  random,
   onWarn: noop,
 };
 
@@ -148,9 +156,17 @@ engine.markLabel = (name) => {
   else if (guide.active && /^f\d+$/.test(name)) dayLog.path.push(name);
 };
 let steps = 0;
+const limitArg = process.argv.find((s) => s.startsWith('--max-steps='));
+const maxSteps = limitArg ? Number(limitArg.split('=')[1]) : 60e6;
 const step = engine.step.bind(engine);
 engine.step = function () {
-  if (++steps > 60e6) { problem = 'gave up after ' + steps + ' script steps on day ' + (guide.today ? guide.today.n : '?'); throw new Signal('end'); }
+  clock++;
+  if (++steps > maxSteps) {
+    const line = engine.lineOf(engine.pc) + 1;
+    problem = 'gave up after ' + steps + ' script steps on day ' + (guide.today ? guide.today.n : '?')
+      + ', line ' + line + ': ' + engine.src.slice(engine.pc, engine.pc + 100).split('\n')[0];
+    throw new Signal('end');
+  }
   return step();
 };
 
@@ -170,3 +186,4 @@ console.log('ending: ' + ending + ' | days played: ' + report.length + ' of ' + 
   + ' | script steps: ' + steps + (problem ? ' | stopped: ' + problem : ''));
 if (process.argv.includes('--choices')) { const seen = new Set(); for (const q of quizLog) { if (seen.has(q)) continue; seen.add(q); console.log('  ' + q.slice(0, 200)); if (seen.size > 60) break; } }
 if (process.argv.includes('--paths')) fs.writeFileSync(path.join(here, 'guide-paths.json'), JSON.stringify(report.map((d) => ({ n: d.n, path: d.path }))));
+if (bad || problem || !guide.finished) process.exitCode = 1;

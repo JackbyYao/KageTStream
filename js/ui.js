@@ -548,7 +548,10 @@ export class UI {
         if (l) { scene = l[1] === 's' ? 's' + l[2] : null; continue; }
         if (/^\s*\*/.test(line)) { scene = null; continue; }
         if (!scene) continue;
-        for (const p of line.matchAll(/(?:^|:)\s*play\w*\s+"\*0*(\d+)"/g)) {
+        const music = this.host.lang === 'chs'
+          ? /(?:^|:)\s*(?:play\w*\s+"\*|mp3loop\s+"bgm[\\/])0*(\d+)/g
+          : /(?:^|:)\s*play\w*\s+"\*0*(\d+)"/g;
+        for (const p of line.matchAll(music)) {
           if (!this.sceneMusic.has(scene)) this.sceneMusic.set(scene, new Set());
           this.sceneMusic.get(scene).add(parseInt(p[1], 10));
         }

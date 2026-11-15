@@ -14,12 +14,12 @@ import { ACTIONS, setBindings, bindings, isDefault, names } from './keys.js';
 
 const DATA = 'data/';
 // The story's languages. English is data/script.txt; each other one is data/script-<code>.txt and is
-// offered only where the data holds it (tools/extract.py --ja / --pt / --es). The opening page names
-// them in full; Settings by their short codes, which keep four of them on one line of its column.
-const LANGUAGES = [['English', 'en'], ['\u65e5\u672c\u8a9e', 'ja'], ['Portugu\u00eas', 'pt'], ['Espa\u00f1ol', 'es']];
-const SHORT = { en: 'EN', ja: 'JA', pt: 'PT-BR', es: 'ES' };
+// offered only where the data holds it (tools/extract.py --ja / --pt / --es / --chs).
+// The opening page names them in full; Settings uses short names to fit its column.
+const LANGUAGES = [['English', 'en'], ['\u65e5\u672c\u8a9e', 'ja'], ['Portugu\u00eas', 'pt'], ['Espa\u00f1ol', 'es'], ['简体中文', 'chs']];
+const SHORT = { en: 'EN', ja: 'JA', pt: 'PT-BR', es: 'ES', chs: '简中' };
 const scriptOf = (l) => 'script-' + l + '.txt';
-const SWITCH = { en: 'Switch the story to English?', ja: 'Switch the story to Japanese?', pt: 'Switch the story to Portuguese?', es: 'Switch the story to Spanish?' };
+const SWITCH = { en: 'Switch the story to English?', ja: 'Switch the story to Japanese?', pt: 'Switch the story to Portuguese?', es: 'Switch the story to Spanish?', chs: 'Switch the story to Simplified Chinese?' };
 
 // What the Japanese script calls its scenes. Each says so in the question it asks before a re-read
 // ("ここは、「学校・昼休み～食堂。…」のシーンです。"): the place before the first "・", then the name.
@@ -30,6 +30,23 @@ function sceneNames(src) {
     const title = m[2].replace(/_/g, '');
     const cut = title.indexOf('・');
     out.set(m[1].toLowerCase(), cut > 0 && cut <= 8 ? { zone: title.slice(0, cut), name: title.slice(cut + 1) } : { zone: '', name: title });
+  }
+  return out;
+}
+function sceneNamesChinese(src) {
+  // A few early scenes have only informal skip prompts instead of a title.
+  const out = new Map(Object.entries({
+    s1: { zone: '早晨', name: '破碎的梦' },
+    s2: { zone: '早晨', name: '今天做些什么？' },
+    s3: { zone: '早晨', name: '一如往常的餐桌' },
+    s4: { zone: '学校', name: '爱尔奎特的公寓' },
+    s243: { zone: '文化祭', name: '下午～校内徘徊。复苏的恶魔' },
+  }));
+  const re = /^[ \t]*\*(s\d+)\b[^\n]*\n(?:(?![ \t]*\*)[^\n]*\n){0,12}?[^\n]*?(?:场景(?:是)?|事件|已经显示|这是)「([^」]+)」/gm;
+  for (const m of src.matchAll(re)) {
+    const title = m[2].replace(/_/g, '').trim();
+    const parts = /^(学校(?:路线|路上)?|宅邸|街道|街上|早晨|傍晚|夜晚)[ ·・－-]+(.+)$/.exec(title);
+    out.set(m[1].toLowerCase(), parts ? { zone: parts[1], name: parts[2] } : { zone: '', name: title });
   }
   return out;
 }
@@ -176,7 +193,7 @@ async function boot() {
   // really holds that language's script is known when it has loaded, and is put right then.
   const wording = (l) => {
     setLang(l);
-    document.documentElement.lang = l;
+    document.documentElement.lang = l === 'chs' ? 'zh-Hans' : l;
     // the parts of the page that are written in index.html
     for (const n of document.querySelectorAll('#quickbar .plate, #modes .chip, #qb-handle')) {
       for (const c of n.childNodes) if (c.nodeType === 3 && c.data.trim()) { n.dataset.en = n.dataset.en || c.data.trim(); c.data = t(n.dataset.en); }
@@ -205,7 +222,7 @@ async function boot() {
   if (PHONE) phoneSetup();
   const applyFont = () => {
     if (!FONTS[settings.font]) settings.font = 'original';
-    setStoryFont(settings.font);
+    setStoryFont(settings.font, lang === 'chs' ? 'chs' : 'en');
     document.documentElement.style.setProperty('--story-font', FONTS[settings.font].stack);
   };
   applyFont();
@@ -357,6 +374,7 @@ async function boot() {
   const scale = Math.max(1, Math.min(3, Math.ceil(fitScale * (window.devicePixelRatio || 1) - 0.25)));
   storage.slotPrefix = lang === 'en' ? '' : lang + ':';
   wording(lang);
+  applyFont();
   if (lang !== 'en') {
     // the story's own words for what the flowchart and the walkthrough have in English
     const back = choiceBack(script, refScript);
@@ -621,7 +639,7 @@ async function boot() {
     unlocked: () => !!settings.unlockAll,
     refScript,                                   // the English script: the flowchart and track names are read from it
     lang,                                        // the script's language: what has been read is kept for each
-    sceneNames: lang === 'ja' ? sceneNames(script) : SCENE_IS[lang] ? sceneNamesLatin(script, SCENE_IS[lang]) : null,
+    sceneNames: lang === 'chs' ? sceneNamesChinese(script) : lang === 'ja' ? sceneNames(script) : SCENE_IS[lang] ? sceneNamesLatin(script, SCENE_IS[lang]) : null,
     // the options of a choice in the walkthrough's (English) wording, for the guide
     guideTexts: lang === 'en' ? null : choiceTranslator(script, refScript),
     flowPrefs: { all: !!settings.flowAll, hints: !!settings.flowHints },

@@ -1506,15 +1506,19 @@ async function select(name) {
 def('select selgosub selnum', select);
 
 // ---- sound
-function bgmFile(v) {
+function bgmFile(v, lang) {
   const m = /^\*(\d+)/.exec(v);
   if (m) return 'cd/track' + String(parseInt(m[1], 10)).padStart(2, '0');
+  // The Chinese patch replaces CD requests with numbered MP3s of those tracks.
+  // Keep the shared CD files and the music-room unlock records in use.
+  const chs = lang === 'chs' && /^bgm[\\/](0?[2-9]|1[0-8])\.mp3$/i.exec(v);
+  if (chs) return 'cd/track' + chs[1].padStart(2, '0');
   return v;
 }
 def('play playonce bgm mp3 mp3loop', function (name) {
   const v = this.readStr();
   const loop = name !== 'playonce' && name !== 'mp3';
-  const file = bgmFile(v);
+  const file = bgmFile(v, this.lang);
   if (this.host.onMusic) this.host.onMusic();
   if (!this.musicLog.has(file)) { this.musicLog.add(file); this.globalsDirty = true; }
   this.bgm = loop ? { file, loop } : null;

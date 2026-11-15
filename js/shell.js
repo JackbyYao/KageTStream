@@ -1061,7 +1061,7 @@ export class Shell {
             wrap.appendChild(out);
             r.appendChild(wrap);
           } else {
-            const opts = el('div', 'cf-opts');
+            const opts = el('div', 'cf-opts' + (row.key === 'lang' ? ' languages' : ''));
             const buttons = [];
             const paint = () => buttons.forEach(([b, v]) => b.classList.toggle('sel', get(row.key) === v));
             for (const [label, value] of row.options) {
@@ -1831,7 +1831,7 @@ export const h = {
   },
   // one of a few: [[label, value]], the current value, and what to do when another is taken
   choice: (panel, label, options, current, fn) => {
-    const g = el('div', 'hm-choice');
+    const g = el('div', 'hm-choice' + (label === 'Language' ? ' languages' : ''));
     g.appendChild(el('span', 'k', label));
     for (const [text, value] of options) {
       const b = el('button', 'hm-link' + (value === current ? ' on' : ''), text);
