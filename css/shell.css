@@ -294,7 +294,7 @@ input[type="range"]::-moz-range-thumb { width: 17px; height: 17px; border: 0; bo
 .fc-tab:hover { color: var(--ink); }
 .fc-tab.on { color: var(--ink); border-bottom-color: var(--rule); }
 .fc-note { font-style: italic; }
-.z-dream { --zc: #6f5a9d; } .z-summer { --zc: #c79a3c; }
+.z-dream { --zc: #6f5a9d; } .z-summer { --zc: #c79a3c; } .z-special { --zc: #b2636e; }
 .fc-n.open .box { fill: rgba(255, 255, 255, .6); stroke: var(--rule); stroke-dasharray: 5 4; }
 .fc-n.open .bar { opacity: .7; }
 .fc-n.open text { fill: var(--ink-soft); font-size: 14px; }
@@ -360,6 +360,9 @@ input[type="range"]::-moz-range-thumb { width: 17px; height: 17px; border: 0; bo
 .cg { position: relative; width: 200px; height: 150px; background: #d8d0d8; outline: 1.5px solid transparent; outline-offset: 3px;
   box-shadow: 0 1px 0 rgba(46, 53, 83, .4), 0 7px 16px rgba(46, 53, 83, .22); transition: transform .14s, outline-color .14s; }
 .cg img { display: block; width: 200px; height: 150px; object-fit: cover; }
+/* a story's card: its piece of the game's page of postcards, placed by shell.js */
+.cg.story { overflow: hidden; }
+.cg.story img { position: absolute; max-width: none; object-fit: fill; }
 .cg.cur { transform: translateY(-3px); outline-color: var(--rule); }
 .cg.locked { background: none; box-shadow: none; outline: 1.5px dashed rgba(92, 102, 140, .4); outline-offset: -1px; cursor: default; }
 .cg.locked::after { content: "Not yet seen"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 19px; font-style: italic; color: rgba(116, 120, 148, .8); }

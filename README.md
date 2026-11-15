@@ -189,7 +189,10 @@ the story.
   Start game, Resume game, Settings (straight to the Settings page) and Gallery.
 * **Gallery** (from the title) — *Graphics mode*: the game's four galleries as
   tabs of thumbnails, read from the script with its own unlock rules, and a
-  full-size viewer. *Flowchart*. *Music player*: the seventeen tracks under the
+  full-size viewer. As in the game, the last card of *Submitted art* is the
+  special story, *Drinking, Dreaming Moon* (its piece of the page's picture),
+  open once any Summer Festival has been read; choosing it reads the story,
+  credits and all, and then returns to the title. *Flowchart*. *Music player*: the seventeen tracks under the
   names the script gives them; one the story has not played yet shows as
   "? ? ?" and cannot be played. *Guide*, when the walkthrough is in `data/`
   (see Guide below).
@@ -229,8 +232,10 @@ the story.
   each branch's condition in plain words, naming the scenes that count towards
   it once you have read them, and say how to reach a scene not yet read.
   *Ten Nights of Dream* and *Summer Festivals* are the two side lists, each
-  dream linked to the day scenes that open it. Scenes not yet read show only
-  dots; "read this scene again" replays one by itself. Drag to move, wheel to
+  dream linked to the day scenes that open it; below the festivals stands
+  *Drinking, Dreaming Moon*, which any one of them opens and which can be read
+  from its card. Scenes not yet read show only dots; "read this scene again"
+  replays one by itself. Drag to move, wheel to
   zoom.
 * **Guide** (optional, off by default) — the walkthrough that came with the
   copy, followed a day at a time (`js/guide.js`; the text itself is read from
@@ -312,8 +317,10 @@ the story.
   Portuguese and Spanish, so their longer words fit.
 * **Unlock everything** (Settings; off by default) — asks
   first, then opens every scene on the flowchart (each can be read on its own),
-  every picture and track in the Gallery, and every story on the Start game
-  pages (Ep, Summer Festivals, all ten dreams). It is a view laid over your own
+  every picture and track in the Gallery, every story on the Start game
+  pages (Ep, Summer Festivals, all ten dreams), and the English patch's staff
+  room (the word "FUN" at the top of the title: its door reads as open while
+  the script checks it). It is a view laid over your own
   progress, not a change to it: nothing in the save data is altered, and the
   story goes on recording what you really read. Switching it off shows your own
   progress again, including anything read while it was on. The day's own

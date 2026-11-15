@@ -792,7 +792,8 @@ export class Shell {
 
   // ---------------------------------------------------------------- gallery: pictures
   // cats: [{ label, items: [{ url, title, artist, unlocked }] }]
-  cgGallery(cats) {
+  // cats: [{ label, items }]; `start`: the tab to open on. Resolves to { story, tab } when a story's card is chosen.
+  cgGallery(cats, start = 0) {
     return this.openLayer('paper flow cgpage', (layer, ctl) => {
       const head = el('div', 'fc-head');
       head.appendChild(el('h1', 'page-title', 'Graphics mode'));
@@ -819,6 +820,7 @@ export class Shell {
         const cat = cats[index];
         tabs.forEach((b, k) => b.classList.toggle('on', k === index));
         const open = cat.items.filter((it) => it.unlocked);
+        const pictures = open.filter((it) => !it.story);     // what the viewer goes through
         count.textContent = tr(this.everything ? 'All ' + cat.items.length + ' unlocked' : open.length + ' of ' + cat.items.length + ' seen');
         fitHead(head, count);
         requestAnimationFrame(() => fitHead(head, count));
@@ -842,17 +844,22 @@ export class Shell {
           });
         }, { root: scroll, threshold: 0.01 });
         for (const it of cat.items) {
-          const b = el('button', 'cg' + (it.unlocked ? '' : ' locked') + (watcher ? ' wait' : ' arrive'));
+          const b = el('button', 'cg' + (it.story ? ' story' : '') + (it.unlocked ? '' : ' locked') + (watcher ? ' wait' : ' arrive'));
           if (it.unlocked) {
             const img = el('img');
             img.loading = 'lazy';
             img.decoding = 'async';
-            img.alt = it.title || '';
+            img.alt = tr(this.word(it.title || ''));
+            // a story's card shows its piece (`crop`, of a 640 x 480 picture) of the whole picture
+            const c = it.crop;
+            if (c) img.style.cssText = 'left:' + (-c.x / c.w * 100) + '%;top:' + (-c.y / c.h * 100) + '%;width:' + (640 / c.w * 100) + '%;height:' + (480 / c.h * 100) + '%';
             img.addEventListener('load', () => img.classList.add('on'));
             img.src = it.url;
             if (img.complete && img.naturalWidth) img.classList.add('on');
             b.appendChild(img);
-            ctl.nav(b, async () => { await this.viewer(open, open.indexOf(it)); });
+            // a story is read, which this page hands back to be done; a picture is looked at
+            if (it.story) ctl.nav(b, () => ctl.done({ story: it.story, tab: index }));
+            else ctl.nav(b, async () => { await this.viewer(pictures, pictures.indexOf(it)); });
           } else b.disabled = true;
           grid.appendChild(b);
           if (watcher) watcher.observe(b);
@@ -866,7 +873,7 @@ export class Shell {
         if (e.key === 'PageUp') { scroll.scrollBy({ top: -500 }); return true; }
         return false;
       };
-      ctl.ready = () => show(0);
+      ctl.ready = () => show(Math.min(start, cats.length - 1));
     });
   }
 
@@ -1388,6 +1395,23 @@ export class Shell {
         world.appendChild(root);
         view.appendChild(world);
         body.appendChild(view);
+        // A name wrapped by its count of letters can still run past the edge of its box (wide
+        // letters, or a wider font standing in for the serif). Once drawn, such a name is wrapped
+        // again, a letter shorter at a time, until it fits.
+        requestAnimationFrame(() => {
+          for (const [id, g] of nodeEls) {
+            const n = chart.byId.get(id);
+            if (n.kind === 'gate' || !named(n)) continue;
+            const room = n.w - 21;
+            for (let max = 22; max >= 12; max--) {
+              const texts = [...g.querySelectorAll('text')];
+              if (!texts.some((t) => t.getComputedTextLength() > room)) break;
+              texts.forEach((t) => t.remove());
+              const lines = wrap(nameOf(n), max);
+              lines.forEach((line, i) => g.appendChild(svg('text', { x: 15, y: (lines.length === 1 ? 32 : 23) + i * 18 }, line)));
+            }
+          }
+        });
 
         // pan and zoom
         const VW = this.SW, VH = 750;
@@ -1514,7 +1538,8 @@ export class Shell {
           } else {
             card.appendChild(el('div', 'fc-zone z-' + n.zoneKey, named(n) ? n.zone || 'Scene' : index === 0 ? 'Scene' : t.label));
             card.appendChild(el('div', 'fc-name', named(n) ? nameOf(n) : index === 0 ? 'Not yet read.' : 'Not yet opened.'));
-            if (index > 0) card.appendChild(el('div', 'fc-endnote', seen ? 'Read.' : named(n) ? 'Open on the game-start page, not yet read.' : 'Still closed.'));
+            if (index > 0) card.appendChild(el('div', 'fc-endnote', seen ? 'Read.' : !named(n) ? 'Still closed.'
+              : n.play ? 'Open, not yet read.' : 'Open on the game-start page, not yet read.'));
           }
           const rows = (title, list) => {
             if (!list.length) return;
@@ -1576,9 +1601,10 @@ export class Shell {
             return [el('span', 'how', how), b];
           }));
           if (seen && n.ends) card.appendChild(el('div', 'fc-endnote', 'The day can end here.'));
-          if (seen && n.kind === 'scene' && opts.canReplay) {
-            const b = el('button', 'hm-link', 'Read this scene again');
-            b.addEventListener('click', (ev) => { ev.stopPropagation(); ctl.done({ replay: n.scene }); });
+          // (a story with a block of its own to play, the special story, is read from here the first time too)
+          if (n.kind === 'scene' && opts.canReplay && (seen || (n.play && named(n)))) {
+            const b = el('button', 'hm-link', seen ? 'Read this scene again' : 'Read this scene');
+            b.addEventListener('click', (ev) => { ev.stopPropagation(); ctl.done({ replay: n.scene, play: n.play, first: !seen }); });
             card.appendChild(b);
           }
         };

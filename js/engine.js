@@ -221,6 +221,8 @@ export class Engine {
     this.waveLoop = null;
     this.skipMode = false;
     this.replaying = false;
+    this.replayFirst = false;       // the story replayed has not been read before
+    this.replayStop = null;         // a block replayed ends when it reaches this label
     this.creditsSkip = false;
   }
 
@@ -670,13 +672,17 @@ export class Engine {
         } else if (e.kind === 'load') {
           await this.applySnapshot(e.data);
         } else if (e.kind === 'replay') {
-          // one scene on its own: set the window up as the story does, play the scene, then back to the title
+          // one scene on its own: set the window up as the story does, play the scene, then back to the title.
+          // Or a block of the script ({ label, stop }), which ends where it reaches the label `stop`.
+          const what = typeof e.data === 'string' ? { label: e.data } : e.data;
           this.flushGlobals(true);
           await this.doReset();
-          const chain = ['nsweb_replay_end', e.data, 'disp_cursor', 'restore_weffect'].filter((l) => this.labels.has(l));
+          const chain = ['nsweb_replay_end', what.label, 'disp_cursor', 'restore_weffect'].filter((l) => this.labels.has(l));
           this.callStack = chain.map((l) => this.labels.get(l).off);
           if (!this.jumpTo('set_window_mm')) this.pc = this.callStack.pop();
           this.replaying = true;
+          this.replayFirst = !!what.first;
+          this.replayStop = what.stop || null;
         } else if (e.kind === 'end') {
           break;
         }
@@ -705,6 +711,7 @@ export class Engine {
     if (c === '*') {
       this.pc++;
       const name = this.readIdent().toLowerCase();
+      if (name && name === this.replayStop) { this.replayStop = null; this.jumpTo('nsweb_replay_end'); return; }
       if (name) this.markLabel(name);
       this.skipLine();
       return;
@@ -980,6 +987,7 @@ export class Engine {
       saveon: this.saveon,
       lastTilde: this.lastTilde,
       flow: this.currentFlow,
+      stop: this.replayStop || undefined,
     };
     return this.snapshot;
   }
@@ -1028,6 +1036,7 @@ export class Engine {
     this.saveon = snap.saveon;
     this.lastTilde = snap.lastTilde || 0;
     this.currentFlow = snap.flow || null;
+    this.replayStop = snap.stop || null;
     this.textMode = !!snap.textMode;
     this.cursors = [null, null];
     for (let i = 0; i < 2; i++) {
@@ -1471,6 +1480,10 @@ async function select(name) {
   const mode = name === 'selnum' ? 'num' : name === 'selgosub' ? 'gosub' : 'goto';
   let ref = null;
   if (mode === 'num') { ref = this.readVarRef(); this.comma(); }
+  // ONScripter also takes the options from the next lines when the command stands alone on its
+  // line (the English patch's Jukebox and its page of daily messages are written so)
+  this.ws();
+  if (this.src[this.pc] === '\n' || this.src[this.pc] === ';') this.wsnl();
   const opts = [];
   for (;;) {
     const text = this.readStr();

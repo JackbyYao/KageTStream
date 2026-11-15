@@ -4,7 +4,7 @@
 // are pages of the shell.
 import { Signal } from './engine.js';
 import { cleanLabel } from './text.js';
-import { parseFlow, layoutFlow, sideStories, simulateDay } from './flowchart-model.js';
+import { parseFlow, layoutFlow, sideStories, simulateDay, SPECIAL } from './flowchart-model.js';
 import { similarity } from './guide.js';
 import { findSkin } from './skins.js';
 
@@ -293,7 +293,7 @@ export class UI {
     const at = items.findIndex((i) => i.value === 'reset');
     items.splice(at < 0 ? items.length : at, 0, ...extra);
     for (;;) {
-      const action = await shell.menu(items, { title: e.replaying ? 'Reading a scene again' : cleanLabel(e.caption.split('//')[0].trim()), track: audio.track() });
+      const action = await shell.menu(items, { title: e.replaying ? (e.replayFirst ? 'Reading a scene' : 'Reading a scene again') : cleanLabel(e.caption.split('//')[0].trim()), track: audio.track() });
       if (!action) return null;
       const r = await this.systemAction(action);
       if (action === 'config' || action === 'flowchart' || action === 'guide') continue;   // back to the menu from its own pages
@@ -397,8 +397,15 @@ export class UI {
         const pick = await shell.gamePage({ title: 'Gallery', items: entries });
         if (pick === null) return;
         if (pick === 'guide') { await shell.guidePage(guide); continue; }
-        if (pick === 'cg') await shell.cgGallery(this.pictures());
-        else if (pick === 'flow') await this.flowchart();
+        if (pick === 'cg') {
+          // (its submitted art holds a story as well as pictures: the special story, read from there as in the game)
+          for (let tab = 0; ;) {
+            const r = await shell.cgGallery(this.pictures(), tab);
+            if (!r || !r.story) break;
+            tab = r.tab;
+            await this.replay(r.story, !this.specialRead());
+          }
+        } else if (pick === 'flow') await this.flowchart();
         else if (pick === 'music') await this.musicPlayer();
       }
     } finally {
@@ -413,6 +420,25 @@ export class UI {
     this.playing = 0;
     this.host.audio.onBgmEnded = null;
     if (stop) this.host.audio.stopBgm(600);
+  }
+
+  // One scene read on its own (`what`: its label), or a story's own block ({ label, stop }), after
+  // asking; it plays by itself and then returns to the title. Returns only if the reader says no.
+  async replay(what, first) {
+    if (await this.host.shell.confirm(first ? 'Read this scene?' : 'Read this scene again?',
+      'It plays by itself and then returns to the title. The day so far is kept only if it has been saved.')) {
+      throw new Signal('replay', typeof what === 'string' ? what : Object.assign({ first: !!first }, what));
+    }
+  }
+
+  // Whether the special story has been read (as the flowchart counts it: by its flag, or where the
+  // script has no such flag, by its scene having been entered).
+  specialRead() {
+    const e = this.engine;
+    if (this.unlocked()) return true;
+    if (e.numalias.has(SPECIAL.fin)) return e.getNum(e.numalias.get(SPECIAL.fin)) > 0;
+    const m = new RegExp('^[ \\t]*\\*' + SPECIAL.label + '\\b[^\\n]*\\n\\s*gosub\\s+\\*(s\\d+)', 'mi').exec(this.refSrc());
+    return !!m && this.entered(m[1].toLowerCase());
   }
 
   // "Unlock everything" (Settings) is on: the galleries, the music player and the flowchart show
@@ -459,7 +485,18 @@ export class UI {
         if (e.getNum(4020) !== page) break;          // past the last page: the script wraps round
         for (let k = 1; k <= 9; k++) {
           const file = e.getStr(4000 + k);
-          if (!file || file[0] === '*') continue;
+          if (!file) continue;
+          // A label in place of a picture is the special story ("*yoiyumetsuki"), which the game
+          // plays from here. Its card is its piece of the page's picture (160 x 120 of 640 x 480,
+          // three to a row), where the game paints its name.
+          if (file[0] === '*') {
+            const page = e.getStr(4000), url = page && loader.resolve(page);
+            if (file.slice(1).toLowerCase() !== SPECIAL.label || !url) continue;
+            items.push({ url, story: SPECIAL.play, title: SPECIAL.name, artist: '',
+              crop: { x: 40 + 200 * ((k - 1) % 3), y: [15, 150, 285][Math.floor((k - 1) / 3)], w: 160, h: 120 },
+              unlocked: all || started >= e.getNum(4060 + k) });
+            continue;
+          }
           const url = loader.resolve(file);
           if (!url) continue;
           const unlocked = all ? true : rule === 'shown' ? e.fileLog.has(file.replace(/\\/g, '/').toLowerCase())
@@ -609,7 +646,9 @@ export class UI {
       const read = new Set(), open = new Set();
       for (const n of s.chart.nodes) {
         if (n.kind !== 'scene') continue;
-        if (all || (n.fin ? flag(n.fin) > 0 : entered(n.scene))) read.add(n.id);
+        // (the Japanese script lacks some of these flags, which the English patch added: the festivals'
+        // own and the special story's; there a story counts as read once its scene has been entered)
+        if (all || (n.fin && e.numalias.has(n.fin) ? flag(n.fin) > 0 : entered(n.scene))) read.add(n.id);
         if ((all || flag(n.flag) > 0) && n.fin) open.add(n.id);
       }
       tabs.push({ label: s.label, note: s.note, chart: s.chart, seen: read, open, current: null, fog: false });
@@ -617,9 +656,8 @@ export class UI {
     const prefs = this.host.flowPrefs;
     const r = await shell.flowchart(tabs, { canReplay: true, value: flag, prefs, savePrefs: this.host.saveFlowPrefs, unlocked: all });
     if (r && r.replay) {
-      if (await shell.confirm('Read this scene again?', 'It plays by itself and then returns to the title. The day so far is kept only if it has been saved.')) {
-        throw new Signal('replay', r.replay);
-      }
+      // (a story with a block of its own, the special story, plays that block, credits and all)
+      await this.replay(r.play || r.replay, r.first);
       return this.flowchart();
     }
   }

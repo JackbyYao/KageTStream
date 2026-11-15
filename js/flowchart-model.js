@@ -431,7 +431,7 @@ export function layoutFlow(model, opts = {}) {
     const b = boxes.get(id);
     const src = nodes.get(id);
     out.push({ id, kind: b.kind, scene: b.scene, title: b.title, zone: b.zone, name: b.name, zoneKey: b.zoneKey, ends: b.ends, x: b.x, y: b.y, w: b.w, h: b.h, outs: [],
-      opens: src.opens || [], sets: src.sets || [], flag: src.flag || null, fin: src.fin || null, openedBy: src.openedBy || [] });
+      opens: src.opens || [], sets: src.sets || [], flag: src.flag || null, fin: src.fin || null, openedBy: src.openedBy || [], play: src.play || null });
   }
   const byId = new Map(out.map((n) => [n.id, n]));
   const outEdges = routed.map((r) => {
@@ -452,6 +452,14 @@ export function layoutFlow(model, opts = {}) {
 const DREAMS = ['Good luck, Ciel-sensei', 'A Story for the Evening', 'Crimson Moon', 'Red Demon God', 'Nanako-chan SOS!',
   'Imogirisou', 'Flower of Thanatos', 'Hisui-chan, Inversion Impulse!', 'The Tohno Family Con Game', 'Dawn'];
 const FESTIVALS = [['summer_ark', 'Arcueid'], ['summer_ciel', 'Ciel'], ['summer_akiha', 'Akiha'], ['summer_hisui', 'Hisui'], ['summer_kohaku', 'Kohaku']];
+// And the special story, "Drinking, Dreaming Moon", which any one of the festivals opens
+// (%finish_summer). The game keeps it as the last picture of its gallery of submitted art. Its
+// block "*yoiyumetsuki" plays the scene and the credits, sets %fin_yoi, and goes back to that
+// gallery ("goto *imagemode_post"). This port's gallery is its own, so it is read from the
+// flowchart or from that picture in the port's gallery: `play` runs the block as the game does and
+// stops where it would go back. It stands below the festivals, each of them leading to it.
+export const SPECIAL = { label: 'yoiyumetsuki', name: 'Drinking, Dreaming Moon', zone: 'Special Story', zoneKey: 'special',
+  flag: 'finish_summer', fin: 'fin_yoi', play: { label: 'yoiyumetsuki', stop: 'imagemode_post' } };
 
 function sideBlock(lines, labelLine, label) {
   const i = labelLine.get(label);
@@ -484,7 +492,8 @@ export function sideStories(src, flow) {
   const openedBy = new Map();
   for (const n of flow.nodes.values()) for (const v of n.opens) { if (!openedBy.has(v)) openedBy.set(v, []); openedBy.get(v).push(n.id); }
 
-  const build = (entries, zoneKeyName, zoneLabel) => {
+  // `after`: a story every entry leads to
+  const build = (entries, zoneKeyName, zoneLabel, after) => {
     const nodes = new Map();
     const root = { id: 'list', scene: null, outs: [], ends: false };
     nodes.set('list', root);
@@ -492,7 +501,7 @@ export function sideStories(src, flow) {
       const b = sideBlock(lines, labelLine, e.label);
       if (!b) continue;
       const node = { id: e.label, scene: b.scene, outs: [], ends: false, name: e.name, zone: zoneLabel, zoneKey: zoneKeyName,
-        flag: e.flag, fin: e.fin, openedBy: openedBy.get(e.label) || [] };
+        flag: e.flag, fin: e.fin, openedBy: openedBy.get(e.label) || [], play: e.play || null };
       for (const c of b.choices) {
         const id = e.label + ':' + c.scene;
         nodes.set(id, { id, scene: c.scene, outs: [], ends: false, name: c.text, zone: e.name, zoneKey: zoneKeyName, flag: e.flag, fin: null, openedBy: [] });
@@ -500,6 +509,13 @@ export function sideStories(src, flow) {
       }
       nodes.set(e.label, node);
       root.outs.push({ kind: 'next', text: '', to: e.label });
+    }
+    const a = after && sideBlock(lines, labelLine, after.label);
+    if (a) {
+      const from = entries.filter((e) => nodes.has(e.label));
+      nodes.set(after.label, { id: after.label, scene: a.scene, outs: [], ends: false, name: after.name, zone: after.zone, zoneKey: after.zoneKey,
+        flag: after.flag, fin: after.fin, openedBy: [], play: after.play || null });
+      for (const e of from) nodes.get(e.label).outs.push({ kind: 'next', text: '', to: after.label });
     }
     return layoutFlow({ nodes, titles: new Map(), root: 'list' });
   };
@@ -511,7 +527,8 @@ export function sideStories(src, flow) {
   const fests = FESTIVALS.map(([label, name]) => ({ label, name, flag: 'finish_yume', fin: 'finish_' + label }));
   return [
     { key: 'yume', label: 'Ten Nights of Dream', note: 'Each dream is opened by something that happens in the day.', chart: build(dreams, 'dream', 'Ten Nights of Dream') },
-    { key: 'summer', label: 'Summer Festivals', note: 'These open once all ten dreams have been read.', chart: build(fests, 'summer', 'Summer Festivals') },
+    { key: 'summer', label: 'Summer Festivals', note: 'These open once all ten dreams have been read. Any one of them opens the special story below.',
+      chart: build(fests, 'summer', 'Summer Festivals', SPECIAL) },
   ].filter((t) => t.chart.nodes.length > 1);
 }
 

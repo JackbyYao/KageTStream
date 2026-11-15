@@ -463,22 +463,41 @@ async function boot() {
   // "Unlock everything" is a view laid over the reader's own progress, never a change to it. The
   // port's own pages (gallery, music player, flowchart) ask host.unlocked(). The game's Start game
   // pages are the script's: there, and only there, the flags that decide which entries are offered
-  // read as set. They are stored as they really are, and the story goes on setting them, so
-  // switching this off shows the reader's own progress again, with whatever was read meanwhile.
+  // read as set. So does the flag that lets the reader into the English patch's staff room (the
+  // title's hidden button), while the script tests it. They are stored as they really are, and the
+  // story goes on setting them, so switching this off shows the reader's own progress again, with
+  // whatever was read meanwhile.
   const MENU_FLAGS = ['yume_on', 'finish_yume', 'twilight_aday', 'twilight_ep',
     ...Array.from({ length: 10 }, (_, i) => 'yume' + String(i + 1).padStart(2, '0'))];
+  // where each set of flags reads as set: from one label to another, or (`to` null) to the first label after it
+  const UNLOCK_AREAS = [
+    { from: 'gamestart_menu', to: 'option', names: MENU_FLAGS },
+    { from: 'easter_controller', to: null, names: ['unlock_sr'] },
+  ];
   const applyUnlock = () => {
     const on = !!settings.unlockAll;
     shell.everything = on;
     if (!engine) return;
-    const from = engine.labels.get('gamestart_menu'), to = engine.labels.get('option');
-    // the script names its variables as it starts, so the flags are looked up when first needed
-    let flags = null;
-    engine.numOverride = on && from && to && from.off < to.off
+    const next = (off) => {
+      let best = Infinity;
+      for (const l of engine.labels.values()) if (l.off > off && l.off < best) best = l.off;
+      return best;
+    };
+    const areas = [];
+    for (const a of UNLOCK_AREAS) {
+      const from = engine.labels.get(a.from), to = a.to ? engine.labels.get(a.to) : null;
+      const end = !from ? -1 : a.to ? (to ? to.off : -1) : next(from.off);
+      // (the script names its variables as it starts, so the flags are looked up when first needed)
+      if (from && end > from.off) areas.push({ from: from.off, to: end, names: a.names, flags: null });
+    }
+    engine.numOverride = on && areas.length
       ? (i, v) => {
-        if (v > 0 || engine.stmtStart < from.off || engine.stmtStart >= to.off) return v;
-        if (!flags) flags = new Set(MENU_FLAGS.filter((n) => engine.numalias.has(n)).map((n) => engine.numalias.get(n)));
-        return flags.has(i) ? 1 : v;
+        if (v > 0) return v;
+        const s = engine.stmtStart;
+        const a = areas.find((x) => s >= x.from && s < x.to);
+        if (!a) return v;
+        if (!a.flags) a.flags = new Set(a.names.filter((n) => engine.numalias.has(n)).map((n) => engine.numalias.get(n)));
+        return a.flags.has(i) ? 1 : v;
       }
       : null;
   };
@@ -564,9 +583,13 @@ async function boot() {
       }
       if (key === 'unlockAll') {
         if (!!settings.unlockAll === value) return;
+        // (the patches' scripts have a staff room behind the title's hidden button; the Japanese one has none)
+        const what = engine && engine.labels.has('easter_controller')
+          ? 'Every scene on the flowchart, every picture and track in the Gallery, every story on the Start game page, '
+            + 'and the staff room (behind “FUN” at the top of the title) open. '
+          : 'Every scene on the flowchart, every picture and track in the Gallery, and every story on the Start game page opens. ';
         if (value && !(await shell.confirm('Unlock everything?',
-          'Every scene on the flowchart, every picture and track in the Gallery, and every story on the Start game page opens. '
-          + 'Your own progress is not changed and goes on being kept: turn this off again here to go back to it.'))) return;
+          what + 'Your own progress is not changed and goes on being kept: turn this off again here to go back to it.'))) return;
         settings.unlockAll = value;
         applyUnlock();
         saveSettings();
